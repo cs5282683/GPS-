@@ -42,4 +42,3 @@ jobs:
         uses: actions/upload-artifact@v4.6.0
         with:
           name: GPS++
-          path: /Users/runner/work/GPS/GPS/*.deb
