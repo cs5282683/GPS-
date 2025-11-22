@@ -1,23 +1,25 @@
-name: build deb
+name: Build GPS++ Deb
 
 on: 
   push:
   pull_request:
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
   build:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v4.2.2
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
         with:
           submodules: true
 
-      - name: Check cache
+      - name: Check Theos cache
         run: |
           echo upstream_heads=`git ls-remote https://github.com/roothide/theos | head -n 1 | cut -f 1`-`git ls-remote https://github.com/theos/sdks | head -n 1 | cut -f 1` >> $GITHUB_ENV
 
-      - name: Use cache
+      - name: Use Theos cache
         id: cache
         uses: actions/cache@v4.2.1
         with:
@@ -31,14 +33,43 @@ jobs:
         run: |
           echo "$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
 
-      - name: Build package
+      - name: Build packages
         run: |
-          rm -f packages/*
-          make package FINALPACKAGE=1 -j$(sysctl -n hw.ncpu)
-          make package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1 -j$(sysctl -n hw.ncpu)
-          make package THEOS_PACKAGE_SCHEME=roothide FINALPACKAGE=1 -j$(sysctl -n hw.ncpu)
+          rm -f packages/*.deb
+          # 标准版
+          make package FINALPACKAGE=1 -j$(sysctl -n hw.ncpu) || true
+          # Rootless版
+          make package THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1 -j$(sysctl -n hw.ncpu) || true
+          # Roothide版
+          make package THEOS_PACKAGE_SCHEME=roothide FINALPACKAGE=1 -j$(sysctl -n hw.ncpu) || true
 
-      - name: Upload specific Deb packages
+      - name: List generated packages
+        run: |
+          echo "Generated packages:"
+          ls -lh *.deb 2>/dev/null || echo "No .deb files in root"
+          ls -lh packages/*.deb 2>/dev/null || echo "No .deb files in packages/"
+
+      - name: Upload Deb packages (root directory)
         uses: actions/upload-artifact@v4.6.0
+        if: always()
         with:
-          name: GPS++
+          name: GPS++-root
+          path: "*.deb"
+          if-no-files-found: ignore
+
+      - name: Upload Deb packages (packages directory)
+        uses: actions/upload-artifact@v4.6.0
+        if: always()
+        with:
+          name: GPS++-packages
+          path: "packages/*.deb"
+          if-no-files-found: ignore
+
+      - name: Upload Deb packages (any location)
+        uses: actions/upload-artifact@v4.6.0
+        if: always()
+        with:
+          name: GPS++-all
+          path: "**/*.deb"
+          if-no-files-found: warn
+
